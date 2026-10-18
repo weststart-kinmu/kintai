@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>勤怠報告（接続テスト）</title>
+  <script charset="utf-8" src="https://static.worksmobile.net/static/wm/woff/edge/3.7.4/sdk.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 16px; font-size: 15px; line-height: 1.6; }
+    h1 { font-size: 18px; }
+    .ok { color: #1a7f37; font-weight: bold; }
+    .ng { color: #c62828; font-weight: bold; }
+    table { border-collapse: collapse; width: 100%; }
+    td { border: 1px solid #ccc; padding: 6px; vertical-align: top; word-break: break-all; }
+    td:first-child { width: 38%; background: #f5f5f5; }
+  </style>
+</head>
+<body>
+  <h1>勤怠報告　接続テスト</h1>
+  <p id="result">確認しています…</p>
+  <table id="info"></table>
+  <script>
+    // 接続テスト用（GitHub Pages）。秘密の情報は含みません。
+    var WOFF_ID = 'CjgqArx6tXMRXWDu1IYKuA';
+    var rows = [];
+    function add(k, v) { rows.push('<tr><td>' + k + '</td><td>' + String(v) + '</td></tr>'); document.getElementById('info').innerHTML = rows.join(''); }
+    function result(ok, msg) { document.getElementById('result').innerHTML = '<span class="' + (ok ? 'ok' : 'ng') + '">' + msg + '</span>'; }
+    add('このページの場所', location.origin);
+    if (typeof woff === 'undefined') {
+      result(false, 'NG：WOFFの部品（SDK）を読み込めませんでした');
+    } else {
+      woff.init({ woffId: WOFF_ID })
+        .then(function () {
+          add('LINE WORKSアプリの中で開いたか', woff.isInClient() ? 'はい' : 'いいえ（外部ブラウザ）');
+          add('端末の種類', woff.getOS());
+          if (!woff.isInClient() && !woff.isLoggedIn()) {
+            add('ログイン', 'LINE WORKSのログイン画面へ移動します');
+            woff.login({ redirectUri: location.href.split('?')[0] });
+            return new Promise(function () {});
+          }
+          return woff.getProfile();
+        })
+        .then(function (p) {
+          add('ユーザーID', p.userId);
+          add('表示名', p.displayName);
+          result(true, 'OK：入力画面をこの場所に置けます');
+        })
+        .catch(function (err) {
+          add('エラー内容', (err && (err.code + ' ' + err.message)) || err);
+          result(false, 'NG：WOFFの準備（init／getProfile）に失敗しました');
+        });
+    }
+  </script>
+</body>
+</html>
