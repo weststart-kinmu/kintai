@@ -1,55 +1,215 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>勤怠報告（接続テスト）</title>
-  <script charset="utf-8" src="https://static.worksmobile.net/static/wm/woff/edge/3.7.4/sdk.js"></script>
-  <style>
-    body { font-family: sans-serif; margin: 16px; font-size: 15px; line-height: 1.6; }
-    h1 { font-size: 18px; }
-    .ok { color: #1a7f37; font-weight: bold; }
-    .ng { color: #c62828; font-weight: bold; }
-    table { border-collapse: collapse; width: 100%; }
-    td { border: 1px solid #ccc; padding: 6px; vertical-align: top; word-break: break-all; }
-    td:first-child { width: 38%; background: #f5f5f5; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>出勤報告</title>
+<script charset="utf-8" src="https://static.worksmobile.net/static/wm/woff/edge/3.7.4/sdk.js"></script>
+<style>
+  :root { --main:#1f4e79; --line:#d0d7de; --bg:#f6f8fa; --ok:#1a7f37; --ng:#c62828; --warn:#9a6700; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif; font-size:16px; color:#1f2328; background:#fff; }
+  header { background:var(--main); color:#fff; padding:12px 16px; font-weight:bold; }
+  header small { display:block; font-weight:normal; opacity:.85; font-size:13px; margin-top:2px; }
+  main { padding:12px 16px 120px; }
+  section { margin-bottom:18px; }
+  h2 { font-size:15px; margin:0 0 8px; color:var(--main); }
+  input[type=date], input[type=time], input[type=text], input[type=number], textarea {
+    width:100%; font-size:16px; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  textarea { min-height:60px; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .chips button { border:1px solid var(--line); background:var(--bg); border-radius:16px; padding:6px 12px; font-size:14px; }
+  .list { border:1px solid var(--line); border-radius:8px; max-height:280px; overflow-y:auto; }
+  .list label { display:flex; gap:10px; align-items:center; padding:12px; border-bottom:1px solid var(--line); }
+  .list label:last-child { border-bottom:none; }
+  .list input { width:20px; height:20px; flex:none; }
+  .list .sub { font-size:12px; color:#57606a; }
+  .search { margin-bottom:6px; }
+  .note { font-size:13px; color:#57606a; margin-top:4px; }
+  .count { font-weight:bold; color:var(--main); }
+  .hidden { display:none !important; }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding:10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .btn { width:100%; padding:14px; font-size:17px; font-weight:bold; border:none; border-radius:10px; background:var(--main); color:#fff; }
+  .btn.sub { background:#fff; color:var(--main); border:1px solid var(--main); margin-top:8px; }
+  .btn:disabled { opacity:.5; }
+  .msg { padding:14px; border-radius:8px; white-space:pre-wrap; line-height:1.6; }
+  .msg.ok { background:#dafbe1; color:#0f5323; } .msg.ng { background:#ffebe9; color:var(--ng); } .msg.info { background:var(--bg); }
+  .confirm dt { font-size:13px; color:#57606a; margin-top:10px; } .confirm dd { margin:2px 0 0; font-weight:bold; }
+</style>
 </head>
 <body>
-  <h1>勤怠報告　接続テスト</h1>
-  <p id="result">確認しています…</p>
-  <table id="info"></table>
-  <script>
-    // 接続テスト用（GitHub Pages）。秘密の情報は含みません。
-    var WOFF_ID = 'CjgqArx6tXMRXWDu1IYKuA';
-    var rows = [];
-    function add(k, v) { rows.push('<tr><td>' + k + '</td><td>' + String(v) + '</td></tr>'); document.getElementById('info').innerHTML = rows.join(''); }
-    function result(ok, msg) { document.getElementById('result').innerHTML = '<span class="' + (ok ? 'ok' : 'ng') + '">' + msg + '</span>'; }
-    add('このページの場所', location.origin);
-    if (typeof woff === 'undefined') {
-      result(false, 'NG：WOFFの部品（SDK）を読み込めませんでした');
-    } else {
-      woff.init({ woffId: WOFF_ID })
-        .then(function () {
-          add('LINE WORKSアプリの中で開いたか', woff.isInClient() ? 'はい' : 'いいえ（外部ブラウザ）');
-          add('端末の種類', woff.getOS());
-          if (!woff.isInClient() && !woff.isLoggedIn()) {
-            add('ログイン', 'LINE WORKSのログイン画面へ移動します');
-            woff.login({ redirectUri: location.href.split('?')[0] });
-            return new Promise(function () {});
-          }
-          return woff.getProfile();
-        })
-        .then(function (p) {
-          add('ユーザーID', p.userId);
-          add('表示名', p.displayName);
-          result(true, 'OK：入力画面をこの場所に置けます');
-        })
-        .catch(function (err) {
-          add('エラー内容', (err && (err.code + ' ' + err.message)) || err);
-          result(false, 'NG：WOFFの準備（init／getProfile）に失敗しました');
-        });
-    }
-  </script>
+<header>出勤報告<small id="who">読み込んでいます…</small></header>
+<main>
+  <div id="loading" class="msg info">選択肢を読み込んでいます…</div>
+  <div id="error" class="msg ng hidden"></div>
+
+  <form id="form" class="hidden" onsubmit="return false">
+    <section>
+      <h2>日付</h2>
+      <input type="date" id="date">
+    </section>
+
+    <section>
+      <h2>工事名</h2>
+      <input type="text" id="siteSearch" class="search" placeholder="工事名で絞り込み">
+      <div class="list" id="siteList"></div>
+      <div id="unlistedSiteBox" class="hidden" style="margin-top:6px">
+        <input type="text" id="unlistedSiteMemo" placeholder="工事名を入力してください">
+        <div class="note">事務の方が確認してから登録されます。</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>出勤時刻</h2>
+      <input type="time" id="start" value="08:00" step="900">
+      <div class="row chips" style="margin-top:6px">
+        <button type="button" data-t="07:00">7:00</button><button type="button" data-t="07:30">7:30</button><button type="button" data-t="08:00">8:00</button>
+      </div>
+      <div class="note">いつもどおりなら 8:00 のままで送信してください。</div>
+    </section>
+
+    <section>
+      <h2>メンバー　<span class="count" id="count">0名</span></h2>
+      <input type="text" id="memberSearch" class="search" placeholder="名前で絞り込み">
+      <div class="list" id="memberList"></div>
+      <div class="note">前回のメンバーに最初から印が付いています。</div>
+      <details style="margin-top:8px"><summary>一覧にない人がいるとき</summary>
+        <textarea id="unlistedMembers" placeholder="名前を入力（複数のときは改行で区切る）"></textarea>
+        <div class="note">事務の方が確認してから登録されます。</div>
+      </details>
+    </section>
+
+    <section>
+      <h2>協力会社（いる場合のみ）</h2>
+      <div class="row">
+        <input type="text" id="partnerName" placeholder="会社名" style="flex:2">
+        <input type="number" id="headcount" placeholder="人数" min="0" inputmode="numeric" style="flex:1">
+      </div>
+    </section>
+  </form>
+
+  <div id="confirm" class="hidden">
+    <div class="msg info">この内容で送信します。よろしいですか。</div>
+    <dl class="confirm" id="confirmBody"></dl>
+  </div>
+
+  <div id="done" class="hidden"></div>
+</main>
+
+<div class="bar">
+  <button class="btn" id="btnMain" disabled>確認する</button>
+  <button class="btn sub hidden" id="btnBack">戻って直す</button>
+</div>
+
+<script>
+// ===== 設定 =====
+var WOFF_ID = 'CjgqArx6tXMRXWDu1IYKuA';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbz5l-zRwvslx_J5ZrV0_XJodDYlw_uiGORXKUkxDMiG2_eJjmKIE29_LfLwGU-wG75XeQ/exec';   // GASを公開したURL（デプロイ後に設定）
+
+var state = { uid:'', token:'', opt:null, site:'', unlistedSite:false, step:'input' };
+function $(id){ return document.getElementById(id); }
+function show(id, on){ $(id).classList.toggle('hidden', !on); }
+function fail(msg){ show('loading', false); show('form', false); $('error').textContent = msg; show('error', true); $('btnMain').disabled = true; }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+// ===== 起動 =====
+woff.init({ woffId: WOFF_ID }).then(function(){
+  if (!woff.isInClient() && !woff.isLoggedIn()) { woff.login({ redirectUri: location.href.split('?')[0] }); return new Promise(function(){}); }
+  return woff.getProfile();
+}).then(function(p){
+  state.uid = p.userId;
+  state.token = woff.getAccessToken();
+  return fetch(GAS_URL + '?action=options&uid=' + encodeURIComponent(state.uid)).then(function(r){ return r.json(); });
+}).then(function(opt){
+  if (!opt.ok) { fail(opt.message || ('読み込みに失敗しました：' + opt.error)); return; }
+  state.opt = opt;
+  $('who').textContent = '報告者：' + opt.reporter.name;
+  setupForm(opt);
+  show('loading', false); show('form', true); $('btnMain').disabled = false;
+}).catch(function(err){
+  fail('読み込みに失敗しました。電波の良い場所で開き直してください。\n（' + (err && (err.message || err.code) || err) + '）');
+});
+
+function setupForm(opt){
+  var d = $('date'); d.value = opt.today; d.max = opt.today;
+  var min = new Date(opt.today + 'T00:00:00'); min.setDate(min.getDate() - opt.allowPastDays);
+  d.min = min.getFullYear() + '-' + ('0'+(min.getMonth()+1)).slice(-2) + '-' + ('0'+min.getDate()).slice(-2);
+
+  var html = opt.sites.map(function(s){
+    return '<label data-k="' + esc(s.name) + '"><input type="radio" name="site" value="' + esc(s.name) + '"><span>' + esc(s.name) +
+      (s.kubun && s.kubun.indexOf('子') === 0 ? '<div class="sub">追加工事など</div>' : '') + '</span></label>';
+  }).join('') + '<label data-k="一覧にない工事"><input type="radio" name="site" value="__unlisted__"><span>一覧にない工事</span></label>';
+  $('siteList').innerHTML = html;
+  $('siteList').addEventListener('change', function(e){
+    state.unlistedSite = e.target.value === '__unlisted__';
+    state.site = state.unlistedSite ? '' : e.target.value;
+    show('unlistedSiteBox', state.unlistedSite);
+  });
+  if (opt.lastSite) { var r = document.querySelector('#siteList input[value="' + CSS.escape(opt.lastSite) + '"]'); if (r) { r.checked = true; state.site = opt.lastSite; } }
+
+  $('memberList').innerHTML = opt.members.map(function(m){
+    var on = opt.lastMembers.indexOf(String(m.no)) >= 0 ? ' checked' : '';
+    return '<label data-k="' + esc(m.sei + m.mei) + '"><input type="checkbox" value="' + esc(m.no) + '"' + on + '><span>' + esc(m.sei + ' ' + m.mei) + '</span></label>';
+  }).join('');
+  $('memberList').addEventListener('change', updateCount);
+  $('unlistedMembers').addEventListener('input', updateCount);
+  updateCount();
+
+  filter('siteSearch', 'siteList'); filter('memberSearch', 'memberList');
+  Array.prototype.forEach.call(document.querySelectorAll('.chips button'), function(b){ b.onclick = function(){ $('start').value = b.dataset.t; }; });
+}
+function filter(inputId, listId){
+  $(inputId).addEventListener('input', function(){
+    var q = this.value.trim();
+    Array.prototype.forEach.call($(listId).querySelectorAll('label'), function(l){ l.classList.toggle('hidden', q && l.dataset.k.indexOf(q) < 0 && !l.querySelector('input:checked')); });
+  });
+}
+function selectedMembers(){ return Array.prototype.map.call(document.querySelectorAll('#memberList input:checked'), function(i){ return i.value; }); }
+function unlistedNames(){ return $('unlistedMembers').value.split(/[\n、,，\s]+/).map(function(s){ return s.trim(); }).filter(Boolean); }
+function updateCount(){ $('count').textContent = (selectedMembers().length + unlistedNames().length) + '名'; }
+
+// ===== 確認 → 送信 =====
+$('btnMain').onclick = function(){ if (state.step === 'input') toConfirm(); else if (state.step === 'confirm') send(); else woff.closeWindow(); };
+$('btnBack').onclick = function(){ state.step = 'input'; show('confirm', false); show('form', true); show('btnBack', false); $('btnMain').textContent = '確認する'; window.scrollTo(0,0); };
+
+function payload(){
+  return { action:'clockin', uid:state.uid, token:state.token, date:$('date').value, site:state.site, unlistedSite:state.unlistedSite,
+    unlistedSiteMemo:$('unlistedSiteMemo').value.trim(), start:$('start').value, members:selectedMembers(), unlistedMembers:unlistedNames().join('\n'),
+    partnerName:$('partnerName').value.trim(), headcount:Number($('headcount').value || 0) };
+}
+function toConfirm(){
+  var p = payload(), err = [];
+  if (!p.date) err.push('日付を選んでください。');
+  if (!p.site && !p.unlistedSite) err.push('工事名を選んでください。');
+  if (p.unlistedSite && !p.unlistedSiteMemo) err.push('一覧にない工事の工事名を入力してください。');
+  if (!p.start) err.push('出勤時刻を入れてください。');
+  if (!p.members.length && !unlistedNames().length && !(p.partnerName && p.headcount > 0)) err.push('メンバーを1人以上選んでください。');
+  if ((p.partnerName && !p.headcount) || (!p.partnerName && p.headcount)) err.push('協力会社は、会社名と人数の両方を入れてください。');
+  if (err.length) { alertBox(err.join('\n')); return; }
+
+  var names = p.members.map(function(no){ var m = state.opt.members.filter(function(x){ return String(x.no) === no; })[0]; return m.sei + ' ' + m.mei; })
+    .concat(unlistedNames().map(function(n){ return n + '（一覧にない人）'; }));
+  var rows = [['日付', p.date.replace(/-/g, '/')], ['工事名', p.unlistedSite ? p.unlistedSiteMemo + '（一覧にない工事）' : p.site], ['出勤時刻', p.start],
+    ['メンバー（' + names.length + '名）', names.join('、') || 'なし']];
+  if (p.partnerName) rows.push(['協力会社', p.partnerName + '　' + p.headcount + '名']);
+  $('confirmBody').innerHTML = rows.map(function(r){ return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('');
+  state.step = 'confirm'; show('form', false); show('confirm', true); show('btnBack', true); $('btnMain').textContent = '送信する'; window.scrollTo(0,0);
+}
+function alertBox(t){ $('error').textContent = t; show('error', true); window.scrollTo(0,0); setTimeout(function(){ show('error', false); }, 5000); }
+
+function send(){
+  $('btnMain').disabled = true; $('btnMain').textContent = '送信しています…'; show('btnBack', false);
+  fetch(GAS_URL, { method:'POST', body: JSON.stringify(payload()) }).then(function(r){ return r.json(); }).then(function(res){
+    show('confirm', false);
+    $('done').innerHTML = '<div class="msg ' + (res.ok ? 'ok' : 'ng') + '">' + esc(res.message || res.error || '送信しました') + '</div>';
+    show('done', true);
+    if (res.ok) { state.step = 'done'; $('btnMain').textContent = '閉じる'; $('btnMain').disabled = false; }
+    else { state.step = 'confirm'; $('btnMain').textContent = '送信する'; $('btnMain').disabled = false; show('btnBack', true); show('confirm', true); }
+  }).catch(function(err){
+    $('btnMain').disabled = false; $('btnMain').textContent = '送信する'; show('btnBack', true);
+    alertBox('送信できませんでした。電波の良い場所でもう一度「送信する」を押してください。\n同じ内容を2回送っても、二重には登録されません。');
+  });
+}
+</script>
 </body>
 </html>
