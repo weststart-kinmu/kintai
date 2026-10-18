@@ -38,7 +38,7 @@
 </style>
 </head>
 <body>
-<header>出勤報告<small id="who">読み込んでいます…</small></header>
+<header><span id="ttl">出勤報告</span><small id="who">読み込んでいます…</small></header>
 <main>
   <div id="loading" class="msg info">選択肢を読み込んでいます…</div>
   <div id="error" class="msg ng hidden"></div>
@@ -88,6 +88,23 @@
     </section>
   </form>
 
+  <div id="outForm" class="hidden">
+    <section>
+      <h2 id="outTitle"></h2>
+      <div class="note">人ごとに退勤時刻を入れてください。定時（17:00）の人はそのままで大丈夫です。</div>
+    </section>
+    <section>
+      <h2>全員に同じ時刻を入れる</h2>
+      <div class="row chips" id="outChips">
+        <button type="button" data-t="17:00">17:00</button><button type="button" data-t="17:30">17:30</button><button type="button" data-t="18:00">18:00</button><button type="button" data-t="18:30">18:30</button><button type="button" data-t="19:00">19:00</button>
+      </div>
+    </section>
+    <section>
+      <h2>メンバーごとの退勤時刻</h2>
+      <div class="list" id="outList" style="max-height:none"></div>
+    </section>
+  </div>
+
   <div id="confirm" class="hidden">
     <div class="msg info">この内容で送信します。よろしいですか。</div>
     <dl class="confirm" id="confirmBody"></dl>
@@ -106,7 +123,9 @@
 var WOFF_ID = 'CjgqArx6tXMRXWDu1IYKuA';
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbz5l-zRwvslx_J5ZrV0_XJodDYlw_uiGORXKUkxDMiG2_eJjmKIE29_LfLwGU-wG75XeQ/exec';   // GASを公開したURL（デプロイ後に設定）
 
-var state = { uid:'', token:'', opt:null, site:'', unlistedSite:false, step:'input' };
+var Q = new URLSearchParams(location.search);
+var state = { uid:'', token:'', opt:null, site:'', unlistedSite:false, step:'input', mode: Q.get('mode') === 'out' ? 'out' : 'in', rid: Q.get('rid') || '', out:null };
+document.title = state.mode === 'out' ? '退勤報告' : '出勤報告';
 function $(id){ return document.getElementById(id); }
 function show(id, on){ $(id).classList.toggle('hidden', !on); }
 function fail(msg){ show('loading', false); show('form', false); $('error').textContent = msg; show('error', true); $('btnMain').disabled = true; }
@@ -119,8 +138,10 @@ woff.init({ woffId: WOFF_ID }).then(function(){
 }).then(function(p){
   state.uid = p.userId;
   state.token = woff.getAccessToken();
+  if (state.mode === 'out') return startOut();
   return fetch(GAS_URL + '?action=options&uid=' + encodeURIComponent(state.uid)).then(function(r){ return r.json(); });
 }).then(function(opt){
+  if (state.mode === 'out') return;
   if (!opt.ok) { fail(opt.message || ('読み込みに失敗しました：' + opt.error)); return; }
   state.opt = opt;
   $('who').textContent = '報告者：' + opt.reporter.name;
@@ -168,16 +189,51 @@ function selectedMembers(){ return Array.prototype.map.call(document.querySelect
 function unlistedNames(){ return $('unlistedMembers').value.split(/[\n、,，\s]+/).map(function(s){ return s.trim(); }).filter(Boolean); }
 function updateCount(){ $('count').textContent = (selectedMembers().length + unlistedNames().length) + '名'; }
 
+// ===== 退勤（時刻指定） =====
+function startOut(){
+  $('ttl').textContent = '退勤報告';
+  return fetch(GAS_URL + '?action=outlist&uid=' + encodeURIComponent(state.uid) + '&rid=' + encodeURIComponent(state.rid)).then(function(r){ return r.json(); }).then(function(o){
+    if (!o.ok) { fail(o.message || '読み込みに失敗しました'); return; }
+    state.out = o;
+    $('who').textContent = '報告者：' + o.reporter.name;
+    $('outTitle').textContent = o.date.replace(/-/g, '/') + '　' + o.site;
+    $('outList').innerHTML = o.members.map(function(m){
+      return '<label><span style="flex:1">' + esc(m.name) + '<div class="sub">出勤 ' + esc(m.start) + '</div></span>' +
+        '<input type="time" step="900" data-id="' + esc(m.id) + '" value="' + esc(o.stdEnd) + '" style="width:130px;height:auto"></label>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('#outChips button'), function(b){ b.onclick = function(){
+      Array.prototype.forEach.call(document.querySelectorAll('#outList input'), function(i){ i.value = b.dataset.t; });
+    }; });
+    show('loading', false); show('outForm', true); $('btnMain').disabled = false;
+  });
+}
+function outItems(){ return Array.prototype.map.call(document.querySelectorAll('#outList input'), function(i){ return { id: i.dataset.id, end: i.value }; }); }
+function toConfirmOut(){
+  var items = outItems();
+  if (items.some(function(x){ return !x.end; })) { alertBox('退勤時刻が空いている人がいます。'); return; }
+  var rows = [['日付・工事名', $('outTitle').textContent]].concat(items.map(function(x){
+    var m = state.out.members.filter(function(y){ return y.id === x.id; })[0];
+    return [m.name, x.end + (x.end === state.out.stdEnd ? '（定時）' : '')];
+  }));
+  $('confirmBody').innerHTML = rows.map(function(r){ return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('');
+  state.step = 'confirm'; show('outForm', false); show('confirm', true); show('btnBack', true); $('btnMain').textContent = '送信する'; window.scrollTo(0,0);
+}
+
 // ===== 確認 → 送信 =====
-$('btnMain').onclick = function(){ if (state.step === 'input') toConfirm(); else if (state.step === 'confirm') send(); else closeApp(); };
+$('btnMain').onclick = function(){
+  if (state.step === 'input') { if (state.mode === 'out') toConfirmOut(); else toConfirm(); }
+  else if (state.step === 'confirm') send();
+  else closeApp();
+};
 function closeApp(){
   try { if (woff.isInClient()) { woff.closeWindow(); return; } } catch (e) {}
   try { window.close(); } catch (e) {}
   setTimeout(function(){ $('btnMain').textContent = '右上の「×」で閉じてください'; $('btnMain').disabled = true; }, 300);
 }
-$('btnBack').onclick = function(){ state.step = 'input'; show('confirm', false); show('form', true); show('btnBack', false); $('btnMain').textContent = '確認する'; window.scrollTo(0,0); };
+$('btnBack').onclick = function(){ state.step = 'input'; show('confirm', false); show(state.mode === 'out' ? 'outForm' : 'form', true); show('btnBack', false); $('btnMain').textContent = '確認する'; window.scrollTo(0,0); };
 
 function payload(){
+  if (state.mode === 'out') return { action:'clockout', uid:state.uid, token:state.token, rid:state.rid, items:outItems() };
   return { action:'clockin', uid:state.uid, token:state.token, date:$('date').value, site:state.site, unlistedSite:state.unlistedSite,
     unlistedSiteMemo:$('unlistedSiteMemo').value.trim(), start:$('start').value, members:selectedMembers(), unlistedMembers:unlistedNames().join('\n'),
     partnerName:$('partnerName').value.trim(), headcount:Number($('headcount').value || 0) };
@@ -209,6 +265,7 @@ function send(){
     $('done').innerHTML = '<div class="msg ' + (res.ok ? 'ok' : 'ng') + '">' + esc(res.message || res.error || '送信しました') + '</div>';
     show('done', true);
     if (res.ok) { state.step = 'done'; $('btnMain').textContent = '閉じる'; $('btnMain').disabled = false; }
+    else if (state.mode === 'out' && /すでに退勤/.test(res.message || '')) { state.step = 'done'; $('btnMain').textContent = '閉じる'; $('btnMain').disabled = false; }
     else { state.step = 'confirm'; $('btnMain').textContent = '送信する'; $('btnMain').disabled = false; show('btnBack', true); show('confirm', true); }
   }).catch(function(err){
     $('btnMain').disabled = false; $('btnMain').textContent = '送信する'; show('btnBack', true);
