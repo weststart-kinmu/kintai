@@ -169,7 +169,12 @@ function unlistedNames(){ return $('unlistedMembers').value.split(/[\n、,，\s]
 function updateCount(){ $('count').textContent = (selectedMembers().length + unlistedNames().length) + '名'; }
 
 // ===== 確認 → 送信 =====
-$('btnMain').onclick = function(){ if (state.step === 'input') toConfirm(); else if (state.step === 'confirm') send(); else woff.closeWindow(); };
+$('btnMain').onclick = function(){ if (state.step === 'input') toConfirm(); else if (state.step === 'confirm') send(); else closeApp(); };
+function closeApp(){
+  try { if (woff.isInClient()) { woff.closeWindow(); return; } } catch (e) {}
+  try { window.close(); } catch (e) {}
+  setTimeout(function(){ $('btnMain').textContent = '右上の「×」で閉じてください'; $('btnMain').disabled = true; }, 300);
+}
 $('btnBack').onclick = function(){ state.step = 'input'; show('confirm', false); show('form', true); show('btnBack', false); $('btnMain').textContent = '確認する'; window.scrollTo(0,0); };
 
 function payload(){
